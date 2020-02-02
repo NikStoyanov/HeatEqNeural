@@ -12,11 +12,9 @@ dx = tot_t / N_tot
 sinkT = -190.0
 ambT = 20.0
 u20 = ambT * ones(N_tot)
-h = 40 * ones(180) # TODO: check if closer initial guess is possible.
 tspan = (0.0, 180.0)
 
 mutable struct hprob
-    h # Vector with size N = number of test data points.
     c # Specific heat.
     ρ # Density.
     k # Thermal conductivity.
@@ -25,36 +23,36 @@ mutable struct hprob
     htcAmb # Atmospheric HTC. TODO: Refer to study from PPG document to justify value.
 end
 
-pr = hprob(h, 450.0, 7850.0, 44.0, sinkT, ambT, 4.0)
+pr = hprob(450.0, 7850.0, 44.0, sinkT, ambT, 4.0)
 
 # Calculate h as the interpolation for the current time point.
-function htc(ti)
+function htc(h, ti)
     y1 = y2 = 0.0
     x1 = x2 = 0
 
-    for (t, h) in enumerate(pr.h)
+    for (t, h) in enumerate(h)
         if ti >= t
             x1 = t
             y1 = h
         end
     end
 
-    if x1 == length(pr.h)
+    if x1 == length(h)
         return y1
     else
         x2 = x1 + 1
-        y2 = pr.h[x2]
+        y2 = h[x2]
         return (y2 - y1) / (x2 - x1) * (ti - x2) + y1
     end
 end
 
-# TODO: Parametrize solve to use p.
-function heat_transfer(du, u, p, t)
+# Discretise ODE.
+function heat_transfer(du, u, h, t)
     ΔT = (pr.sinkT + u[1]) / 2 - u[1]
     α = pr.k / (pr.ρ * pr.c)
 
     # Node exposed to cryogenic liquid.
-    du[1] = 2 * (ΔT * htc(t) /
+    du[1] = 2 * (ΔT * htc(h, t) /
                  (pr.c * pr.ρ) - α * (u[1] - u[2]) / dx) / dx
 
     # Inner nodes.
@@ -71,7 +69,8 @@ end
 # TODO: Setup https://github.com/FluxML/model-zoo/blob/da4156b4a9fb0d5907dcb6e21d0e78c72b6122e0/other/diffeq/ode.jl
 # Solve ODE.
 function direct_problem()
-    val_prob = ODEProblem(heat_transfer, u20, tspan)
+    h = 40 * ones(180) # TODO: check if closer initial guess is possible.
+    val_prob = ODEProblem(heat_transfer, u20, tspan, h)
     val_sol = solve(val_prob, Tsit5())
     plot(val_sol)
 end
