@@ -1,6 +1,7 @@
 using CSV
 using Flux
 using Plots
+using DataFrames
 using DiffEqFlux
 using DifferentialEquations
 
@@ -78,7 +79,21 @@ end
 # Read test data.
 function read_data()
     filename = "Fig_67.csv_Result.csv"
-    CSV.read(filename; skipto = 1)
+    data = CSV.read(filename)
+    table = DataFrame(data)
+
+    # Drop duplicates.
+    nrows, ncols = size(table)
+    for row in 2:nrows
+        if table[row, 1] == table[row - 1, 1]
+            println("Row ", row, " is a duplicate. Deleting...")
+            table[row, 1] = 0
+        end
+    end
+
+    table = table[table[1].!=0,:]
+
+    return table
 end
 
-direct_problem()
+data = read_data()
