@@ -87,7 +87,7 @@ end
 
 test_data = read_data()
 
-N = 20
+N = 10
 t = 0.00635
 dx = t / N
 
@@ -107,13 +107,14 @@ prob = ODEProblem(heat_transfer, u20, tspan, p, saveat = 1.0)
 #plot(sol.t[:], sol[end, :])
 #plot!(test_data[:, 1], test_data[:, 2])
 
-data = Iterators.repeated((), 100)
-opt = ADAM(0.1)
+data = Iterators.repeated((), 10000)
+opt = ADAM(1.0)
 cb = function ()
     display(show(loss_rd()))
     sol = solve(remake(prob, p = Flux.data(p)), Tsit5(), saveat = 1.0)
     display(plot(sol.t[:], sol[end, :]))
     display(plot!(test_data[:, 1], test_data[:, 2]))
+    display(plot(Flux.data(p)))
 end
 
 cb()
