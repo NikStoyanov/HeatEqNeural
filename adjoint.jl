@@ -5,16 +5,6 @@ using DataFrames
 using DiffEqFlux
 using DifferentialEquations
 
-N_tot = 20
-tot_t = 1.0 # TODO: get plate thickness.
-dx = tot_t / N_tot
-
-# TODO: confirm sink and ambient.
-sinkT = -190.0
-ambT = 20.0
-u20 = ambT * ones(N_tot)
-tspan = (0.0, 180.0)
-
 mutable struct hprob
     c # Specific heat.
     ρ # Density.
@@ -23,8 +13,6 @@ mutable struct hprob
     ambT # Initial condition.
     htcAmb # Atmospheric HTC. TODO: Refer to study from PPG document to justify value.
 end
-
-pr = hprob(450.0, 7850.0, 44.0, sinkT, ambT, 4.0)
 
 # Calculate h as the interpolation for the current time point.
 function htc(h, ti)
@@ -57,7 +45,7 @@ function heat_transfer(du, u, h, t)
                  (pr.c * pr.ρ) - α * (u[1] - u[2]) / dx) / dx
 
     # Inner nodes.
-    for i in 2:N_tot - 1
+    for i in 2:N - 1
         du[i] = α * (u[i - 1] - 2u[i] + u[i + 1]) / dx^2
     end
 
@@ -65,15 +53,6 @@ function heat_transfer(du, u, h, t)
     du[end] = 2 * (α * (u[end-1] - u[end]) /
                    dx - (u[end] - pr.ambT) * pr.htcAmb /
                    (pr.ρ * pr.c)) / dx
-end
-
-# TODO: Setup https://github.com/FluxML/model-zoo/blob/da4156b4a9fb0d5907dcb6e21d0e78c72b6122e0/other/diffeq/ode.jl
-# Solve ODE.
-function direct_problem()
-    h = 40 * ones(180) # TODO: check if closer initial guess is possible.
-    val_prob = ODEProblem(heat_transfer, u20, tspan, h)
-    val_sol = solve(val_prob, Tsit5())
-    plot(val_sol)
 end
 
 # Read test data.
@@ -96,4 +75,46 @@ function read_data()
     return table
 end
 
-data = read_data()
+# Flux reverse-mode AD through the differential equation solver.
+function predict_rd()
+    diffeq_adjoint(p, prob, Tsit5(), saveat = 1.0)[end, :]
+end
+
+# Least squares error.
+function loss_rd()
+    sum(abs2, test_data[:, 2] .- predict_rd())
+end
+
+test_data = read_data()
+
+N = 20
+t = 0.00635
+dx = t / N
+
+sinkT = test_data[end, 2]
+ambT = test_data[1, 2]
+u20 = ambT * ones(N)
+tspan = (Float64(test_data[1, 1]), Float64(test_data[end, 1]))
+
+pr = hprob(450.0, 7850.0, 44.0, sinkT, ambT, 4.0)
+
+# Solve ODE.
+p = param(550 * ones(test_data[end, 1])) # TODO: check if closer initial guess is possible.
+#p = 550 * ones(test_data[end, 1])
+prob = ODEProblem(heat_transfer, u20, tspan, p, saveat = 1.0)
+
+#sol = solve(prob)
+#plot(sol.t[:], sol[end, :])
+#plot!(test_data[:, 1], test_data[:, 2])
+
+data = Iterators.repeated((), 100)
+opt = ADAM(0.1)
+cb = function ()
+    display(show(loss_rd()))
+    sol = solve(remake(prob, p = Flux.data(p)), Tsit5(), saveat = 1.0)
+    display(plot(sol.t[:], sol[end, :]))
+    display(plot!(test_data[:, 1], test_data[:, 2]))
+end
+
+cb()
+Flux.train!(loss_rd, [p], data, opt, cb = cb)
