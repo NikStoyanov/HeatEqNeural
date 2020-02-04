@@ -75,6 +75,19 @@ function read_data()
     return table
 end
 
+# Read saved htc values.
+function read_checkpoint(filename)
+    data = CSV.read(filename)
+    table = DataFrame(data)
+
+    return Vector(table[:, 2])
+end
+
+# Write htc values.
+function write_checkpoint(filename, table)
+    data = CSV.write(filename, table)
+end
+
 # Flux reverse-mode AD through the differential equation solver.
 function predict_rd()
     diffeq_adjoint(p, prob, Tsit5(), saveat = 1.0)[end, :]
@@ -99,7 +112,8 @@ tspan = (Float64(test_data[1, 1]), Float64(test_data[end, 1]))
 pr = hprob(450.0, 7850.0, 44.0, sinkT, ambT, 4.0)
 
 # Solve ODE.
-p = param(550 * ones(test_data[end, 1])) # TODO: check if closer initial guess is possible.
+p = param(read_checkpoint("initial_guess.csv"))
+
 #p = 550 * ones(test_data[end, 1])
 prob = ODEProblem(heat_transfer, u20, tspan, p, saveat = 1.0)
 
