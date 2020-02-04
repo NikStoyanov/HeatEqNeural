@@ -109,7 +109,7 @@ ambT = test_data[1, 2]
 u20 = ambT * ones(N)
 tspan = (Float64(test_data[1, 1]), Float64(test_data[end, 1]))
 
-pr = hprob(450.0, 7850.0, 44.0, sinkT, ambT, 4.0)
+pr = hprob(450.0, 7850.0, 42.0, sinkT, ambT, 4.0)
 
 # Solve ODE.
 p = param(read_checkpoint("initial_guess.csv"))
@@ -121,11 +121,11 @@ prob = ODEProblem(heat_transfer, u20, tspan, p, saveat = 1.0)
 #plot(sol.t[:], sol[end, :])
 #plot!(test_data[:, 1], test_data[:, 2])
 
-data = Iterators.repeated((), 1000)
-opt = ADAM(5.0)
+data = Iterators.repeated((), 10000)
+opt = ADAM(20.0)
 
 # 180 readings with plus/minus 2.0C each
-target_loss = 180.0 * 2.0
+target_loss = 180.0 * 2.2
 
 training_cnt = -1
 cb = function ()
@@ -139,7 +139,9 @@ cb = function ()
     end
 
     loss = loss_rd()
-    display(show(loss))
+    print("Loss $loss ")
+    println("Iteration $training_cnt")
+
     if loss <= target_loss
         save_curr = true
         early_exit = true
@@ -163,12 +165,11 @@ cb = function ()
         df = DataFrame(x1 = Float64(test_data[1, 1]):Float64(test_data[end, 1] + 1),
                        x2 = Flux.data(p))
         write_checkpoint("checkpoint_htc_$training_cnt.csv", df)
-        plot(Flux.data(p), color = :black)
+        plot(Flux.data(p), color = :black, label = "Iteration #$training_cnt")
         plot!(fmt = :svg,
             xlims = (0, 200),
-            ylims = (0, 1500),
             grid = false,
-            legend = :none)
+            legend = :topleft)
         savefig("checkpoint_htc_$training_cnt.svg")
     end
 
@@ -179,3 +180,27 @@ end
 
 cb()
 Flux.train!(loss_rd, [p], data, opt, cb = cb)
+
+# Save last iteration.
+sol = solve(remake(prob, p = Flux.data(p)), Tsit5(), saveat = 1.0)
+plot(sol.t[:], sol[end, :], label = "Iteration #$training_cnt",
+    color = :black,
+    linestyle = :dash)
+plot!(test_data[:, 1], test_data[:, 2], label = "Test data",
+    color = :black)
+plot!(fmt = :svg,
+    xlims = (0, 200),
+    ylims = (-200, 50),
+    grid = false,
+    legend = :topright)
+savefig("last_temperature_fit_$training_cnt.svg")
+
+df = DataFrame(x1 = Float64(test_data[1, 1]):Float64(test_data[end, 1] + 1),
+            x2 = Flux.data(p))
+write_checkpoint("last_checkpoint_htc_$training_cnt.csv", df)
+plot(Flux.data(p), color = :black, label = "Iteration #$training_cnt")
+plot!(fmt = :svg,
+    xlims = (0, 200),
+    grid = false,
+    legend = :topleft)
+savefig("last_checkpoint_htc_$training_cnt.svg")
