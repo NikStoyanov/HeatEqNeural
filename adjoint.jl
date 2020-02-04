@@ -83,9 +83,9 @@ function read_checkpoint(filename)
     return Vector(table[:, 2])
 end
 
-# Write htc values.
+# Write htc values as checkpoints.
 function write_checkpoint(filename, table)
-    data = CSV.write(filename, table)
+    CSV.write(filename, table)
 end
 
 # Flux reverse-mode AD through the differential equation solver.
@@ -121,14 +121,60 @@ prob = ODEProblem(heat_transfer, u20, tspan, p, saveat = 1.0)
 #plot(sol.t[:], sol[end, :])
 #plot!(test_data[:, 1], test_data[:, 2])
 
-data = Iterators.repeated((), 10000)
-opt = ADAM(1.0)
+data = Iterators.repeated((), 1000)
+opt = ADAM(5.0)
+
+# 180 readings with plus/minus 2.0C each
+target_loss = 180.0 * 2.0
+
+training_cnt = -1
 cb = function ()
-    display(show(loss_rd()))
+    early_exit = false
+    save_curr = false
+
+    global training_cnt += 1
+
+    if training_cnt % 50 == 0
+        save_curr = true
+    end
+
+    loss = loss_rd()
+    display(show(loss))
+    if loss <= target_loss
+        save_curr = true
+        early_exit = true
+    end
+
     sol = solve(remake(prob, p = Flux.data(p)), Tsit5(), saveat = 1.0)
-    display(plot(sol.t[:], sol[end, :]))
-    display(plot!(test_data[:, 1], test_data[:, 2]))
-    display(plot(Flux.data(p)))
+
+    if save_curr == true
+        plot(sol.t[:], sol[end, :], label = "Iteration #$training_cnt",
+            color = :black,
+            linestyle = :dash)
+        plot!(test_data[:, 1], test_data[:, 2], label = "Test data",
+            color = :black)
+        plot!(fmt = :svg,
+            xlims = (0, 200),
+            ylims = (-200, 50),
+            grid = false,
+            legend = :topright)
+        savefig("temperature_fit_$training_cnt.svg")
+
+        df = DataFrame(x1 = Float64(test_data[1, 1]):Float64(test_data[end, 1] + 1),
+                       x2 = Flux.data(p))
+        write_checkpoint("checkpoint_htc_$training_cnt.csv", df)
+        plot(Flux.data(p), color = :black)
+        plot!(fmt = :svg,
+            xlims = (0, 200),
+            ylims = (0, 1500),
+            grid = false,
+            legend = :none)
+        savefig("checkpoint_htc_$training_cnt.svg")
+    end
+
+    if early_exit == true
+        Flux.stop()
+    end
 end
 
 cb()
