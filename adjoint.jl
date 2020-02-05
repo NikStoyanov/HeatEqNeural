@@ -128,8 +128,8 @@ prob = ODEProblem(heat_transfer, u20, tspan, p, saveat = 1.0)
 data = Iterators.repeated((), 10000)
 opt = ADAM(20.0)
 
-# 180 readings with plus/minus 2.0C each
-target_loss = 180.0 * 2.2
+# 180 readings with plus/minus 2.2C each
+target_loss = 180.0 * (2.2^2)
 
 # Track loss function.
 tot_loss = []
@@ -218,7 +218,7 @@ savefig("last_checkpoint_htc_$training_cnt.svg")
 # Save loss function.
 df_loss = DataFrame(x1 = 1:length(tot_loss),
                     x2 = tot_loss)
-write_checkpoint("loss.svg", df_loss)
+write_checkpoint("loss.csv", df_loss)
 plot(tot_loss, color = :black, label = "Loss",
     fmt = :svg,
     grid = false)
