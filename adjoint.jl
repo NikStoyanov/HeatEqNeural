@@ -98,6 +98,15 @@ function loss_rd()
     sum(abs2, test_data[:, 2] .- predict_rd())
 end
 
+# Solve to get an idea of the initial guess.
+function initial_solve(ini_h, u20, tspan, test_data)
+    p = ini_h * ones(test_data[end, 1])
+    prob = ODEProblem(heat_transfer, u20, tspan, p, saveat = 1.0)
+    sol = solve(prob)
+    plot(sol.t[:], sol[end, :], label = "Solution")
+    plot!(test_data[:, 1], test_data[:, 2], label = "Test data")
+end
+
 test_data = read_data()
 
 N = 10
@@ -114,12 +123,7 @@ pr = hprob(450.0, 7850.0, 42.0, sinkT, ambT, 4.0)
 # Solve ODE.
 p = param(read_checkpoint("initial_guess.csv"))
 
-#p = 550 * ones(test_data[end, 1])
 prob = ODEProblem(heat_transfer, u20, tspan, p, saveat = 1.0)
-
-#sol = solve(prob)
-#plot(sol.t[:], sol[end, :])
-#plot!(test_data[:, 1], test_data[:, 2])
 
 data = Iterators.repeated((), 10000)
 opt = ADAM(20.0)
