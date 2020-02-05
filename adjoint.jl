@@ -5,7 +5,7 @@ using DataFrames
 using DiffEqFlux
 using DifferentialEquations
 
-mutable struct hprob
+struct hprob
     c # Specific heat.
     ρ # Density.
     k # Thermal conductivity.
@@ -45,7 +45,7 @@ function heat_transfer(du, u, h, t)
                  (pr.c * pr.ρ) - α * (u[1] - u[2]) / dx) / dx
 
     # Inner nodes.
-    for i in 2:N - 1
+    for i in 2:size(u)[1] - 1
         du[i] = α * (u[i - 1] - 2u[i] + u[i + 1]) / dx^2
     end
 
@@ -56,8 +56,7 @@ function heat_transfer(du, u, h, t)
 end
 
 # Read test data.
-function read_data()
-    filename = "Fig_67.csv_Result.csv"
+function read_data(filename)
     data = CSV.read(filename)
     table = DataFrame(data)
 
@@ -107,18 +106,20 @@ function initial_solve(ini_h, u20, tspan, test_data)
     plot!(test_data[:, 1], test_data[:, 2], label = "Test data")
 end
 
-test_data = read_data()
+const testfile = "Fig_67.csv_Result.csv"
+const test_data = read_data(testfile)
 
-N = 10
-t = 0.00635
-dx = t / N
+const N = 10
+const t = 0.00635
+const dx = t / N
 
-sinkT = test_data[end, 2]
-ambT = test_data[1, 2]
-u20 = ambT * ones(N)
+const sinkT = test_data[end, 2]
+const ambT = test_data[1, 2]
+const u20 = [ambT for i in 1:N]
+
 tspan = (Float64(test_data[1, 1]), Float64(test_data[end, 1]))
 
-pr = hprob(450.0, 7850.0, 42.0, sinkT, ambT, 4.0)
+const pr = hprob(450.0, 7850.0, 42.0, sinkT, ambT, 4.0)
 
 # Solve ODE.
 p = param(read_checkpoint("initial_guess.csv"))
@@ -129,7 +130,7 @@ data = Iterators.repeated((), 10000)
 opt = ADAM(20.0)
 
 # 180 readings with plus/minus 2.2C each
-target_loss = 180.0 * (2.2^2)
+const target_loss = 180.0 * (2.2^2)
 
 # Track loss function.
 tot_loss = []
