@@ -109,7 +109,7 @@ end
 const testfile = "Fig_67.csv_Result.csv"
 const test_data = read_data(testfile)
 
-const N = 10
+const N = 20
 const t = 0.00635
 const dx = t / N
 
